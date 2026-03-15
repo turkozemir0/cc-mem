@@ -8,19 +8,21 @@ import { basename } from 'path';
 // ── Types ─────────────────────────────────────────────────────────────────
 export interface FileEntry   { path: string; date: string }
 export interface ProjectState {
-  stack:     string[];
-  files:     FileEntry[];
-  openTasks: string[];
-  decisions: string[];
-  problems:  string[];
+  stack:       string[];
+  files:       FileEntry[];
+  openTasks:   string[];
+  decisions:   string[];
+  problems:    string[];
+  lastSession?: string;
 }
 export interface SessionFacts {
-  stack:     string[];
-  files:     FileEntry[];
-  openTasks: string[];
-  doneTasks: string[];
-  decisions: string[];
-  problems:  string[];
+  stack:       string[];
+  files:       FileEntry[];
+  openTasks:   string[];
+  doneTasks:   string[];
+  decisions:   string[];
+  problems:    string[];
+  lastSession?: string;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -343,6 +345,12 @@ export function parseExistingState(cmcBlock: string): ProjectState {
   state.decisions = parseListSection('Key decisions:');
   state.problems  = parseListSection('Problems solved:');
 
+  const lastSessionMatch = /\*\*Last session:\*\*\n([\s\S]*?)(?=\n\n\*\*|\n<!-- CMC:END|$)/.exec(cmcBlock);
+  if (lastSessionMatch) {
+    const txt = lastSessionMatch[1].trim();
+    if (txt && !txt.startsWith('_')) state.lastSession = txt;
+  }
+
   return state;
 }
 
@@ -390,7 +398,9 @@ export function mergeState(old: ProjectState, facts: SessionFacts): ProjectState
     ...old.problems,
   ]).slice(0, MAX_PROBLEMS);
 
-  return { stack, files, openTasks, decisions, problems };
+  const lastSession = facts.lastSession ?? old.lastSession;
+
+  return { stack, files, openTasks, decisions, problems, lastSession };
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
@@ -415,6 +425,10 @@ export function renderCMCBlock(state: ProjectState): string {
     ? state.problems.map(p => `- ${p}`).join('\n')
     : '_None recorded yet._';
 
+  const lastSessionLines = state.lastSession
+    ? state.lastSession
+    : '_No session recorded yet._';
+
   return [
     CMC_START,
     '## 🧠 Project State',
@@ -426,6 +440,9 @@ export function renderCMCBlock(state: ProjectState): string {
     '',
     '**Open tasks:**',
     tasksLines,
+    '',
+    '**Last session:**',
+    lastSessionLines,
     '',
     '**Key decisions:**',
     decisionsLines,

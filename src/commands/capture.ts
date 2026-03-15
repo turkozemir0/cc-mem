@@ -70,23 +70,30 @@ async function getOllamaModel(): Promise<string | null> {
   } catch { return null; }
 }
 
-async function ollamaExtract(
-  assistantTexts: string[],
+async function ollamaSessionSummary(
+  turns: Array<{ role: 'user' | 'assistant'; text: string }>,
   model: string,
-): Promise<{ decisions: string[]; problems: string[] } | null> {
-  const snippet = assistantTexts
-    .join('\n---\n')
-    .replace(/```[\s\S]{0,500}```/g, '[code]')
-    .slice(-3_000);
+): Promise<{ summary: string; decisions: string[]; problems: string[] } | null> {
+  const convo = turns
+    .map(t => {
+      const label = t.role === 'user' ? 'Human' : 'Assistant';
+      const text  = t.text
+        .replace(/```[\s\S]{0,500}```/g, '[code]')
+        .slice(0, 600);
+      return `${label}: ${text}`;
+    })
+    .join('\n')
+    .slice(-4_000);
 
   const prompt =
-`Analyze this Claude Code session excerpt and extract facts concisely.
+`Analyze this Claude Code session. Extract key information for the next session.
 
 SESSION:
-${snippet}
+${convo}
 
-Reply ONLY in this exact format. Use | to separate items. Write "none" if nothing applies.
-DECISIONS: <what was decided or why something was chosen>
+Reply ONLY in this exact format. Use | to separate multiple items. Write "none" if nothing applies.
+SUMMARY: <2-3 sentences: what was worked on, key context, current state, what comes next>
+DECISIONS: <what was decided and why>
 PROBLEMS: <bugs or errors that were fixed, with how>`;
 
   try {
@@ -97,21 +104,25 @@ PROBLEMS: <bugs or errors that were fixed, with how>`;
         model,
         prompt,
         stream:  false,
-        options: { temperature: 0.1, num_predict: 150 },
+        options: { temperature: 0.1, num_predict: 200 },
       }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
     const data = await res.json() as { response: string };
     const text = data.response;
 
-    const parse = (key: string): string[] => {
-      const m = new RegExp(`${key}:\\s*(.+)`, 'i').exec(text);
-      if (!m || /^none$/i.test(m[1].trim())) return [];
-      return m[1].split('|').map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
+    const m = /SUMMARY:\s*(.+)/i.exec(text);
+    const summary = m ? m[1].trim() : '';
+    if (!summary || summary.toLowerCase() === 'none') return null;
+
+    const parseList = (key: string): string[] => {
+      const km = new RegExp(`${key}:\\s*(.+)`, 'i').exec(text);
+      if (!km || /^none$/i.test(km[1].trim())) return [];
+      return km[1].split('|').map(s => s.trim()).filter(s => s.length > 5).slice(0, 3);
     };
 
-    return { decisions: parse('DECISIONS'), problems: parse('PROBLEMS') };
+    return { summary, decisions: parseList('DECISIONS'), problems: parseList('PROBLEMS') };
   } catch { return null; }
 }
 
@@ -193,12 +204,13 @@ export async function commandCapture(): Promise<void> {
     if (lines.length < 2) { process.exit(0); }
 
     // ── Parse transcript ────────────────────────────────────────────────
-    const fileMap       = new Map<string, string>();
-    const installedPkgs = new Set<string>();
-    const openTasks     = new Set<string>();
-    const doneTasks     = new Set<string>();
+    const fileMap         = new Map<string, string>();
+    const installedPkgs   = new Set<string>();
+    const openTasks       = new Set<string>();
+    const doneTasks       = new Set<string>();
     const assistantTexts: string[] = [];
     const allTexts:       string[] = [];
+    const conversationTurns: Array<{ role: 'user' | 'assistant'; text: string }> = [];
     const dateStr = new Date().toISOString().slice(0, 10);
 
     for (const line of lines) {
@@ -229,11 +241,15 @@ export async function commandCapture(): Promise<void> {
           done.forEach(t => doneTasks.add(t));
           assistantTexts.push(text);
           allTexts.push(text);
+          conversationTurns.push({ role: 'assistant', text });
         }
       }
 
       if (msg.role === 'user') {
-        for (const text of textBlocks(msg.content)) allTexts.push(text);
+        for (const text of textBlocks(msg.content)) {
+          allTexts.push(text);
+          conversationTurns.push({ role: 'user', text });
+        }
       }
     }
 
@@ -249,14 +265,15 @@ export async function commandCapture(): Promise<void> {
     const hProblems  = heuristicProblems(assistantTexts); // assistant-only
 
     // ── Ollama (optional) ───────────────────────────────────────────────
-    let ollamaResult: { decisions: string[]; problems: string[] } | null = null;
+    let ollamaResult: { summary: string; decisions: string[]; problems: string[] } | null = null;
     const ollamaModel = await getOllamaModel();
-    if (ollamaModel && assistantTexts.length > 0) {
-      ollamaResult = await ollamaExtract(assistantTexts, ollamaModel);
+    if (ollamaModel && conversationTurns.length > 0) {
+      ollamaResult = await ollamaSessionSummary(conversationTurns, ollamaModel);
     }
 
-    const decisions = ollamaResult?.decisions.length ? ollamaResult.decisions : hDecisions;
-    const problems  = ollamaResult?.problems.length  ? ollamaResult.problems  : hProblems;
+    const decisions   = ollamaResult?.decisions.length ? ollamaResult.decisions : hDecisions;
+    const problems    = ollamaResult?.problems.length  ? ollamaResult.problems  : hProblems;
+    const lastSession = ollamaResult?.summary;
 
     // ── Load existing state ─────────────────────────────────────────────
     let oldState: ProjectState = { stack:[], files:[], openTasks:[], decisions:[], problems:[] };
@@ -271,7 +288,7 @@ export async function commandCapture(): Promise<void> {
       stack, files,
       openTasks: [...openTasks],
       doneTasks: [...doneTasks],
-      decisions, problems,
+      decisions, problems, lastSession,
     });
 
     const updated = await updateCLAUDEMd(cwd, newState);
@@ -280,6 +297,7 @@ export async function commandCapture(): Promise<void> {
       `${updated ? 'updated' : 'skipped'} | ` +
       `files:${files.length} stack:${stack.length} ` +
       `tasks:${openTasks.size} decisions:${decisions.length} ` +
+      `summary:${ollamaResult?.summary ? 'yes' : 'no'} ` +
       `method:${ollamaModel ? `ollama(${ollamaModel})` : 'heuristic'}`,
     );
 
