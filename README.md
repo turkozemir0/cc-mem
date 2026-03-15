@@ -2,12 +2,38 @@
 
 > **Your AI has a bad memory. CMC gives it a good one.**
 
-[![npm version](https://img.shields.io/npm/v/claude-memory-compressor?color=cyan&style=flat-square)](https://www.npmjs.com/package/claude-memory-compressor)
+[![npm version](https://img.shields.io/npm/v/cc-mem?color=cyan&style=flat-square)](https://www.npmjs.com/package/cc-mem)
+[![npm downloads](https://img.shields.io/npm/dm/cc-mem?color=pink&style=flat-square)](https://www.npmjs.com/package/cc-mem)
+[![GitHub stars](https://img.shields.io/github/stars/turkozemir0/cc-mem?style=flat-square&color=yellow)](https://github.com/turkozemir0/cc-mem/stargazers)
 [![Node.js ≥18](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 [![100% Local](https://img.shields.io/badge/runs-100%25%20local-orange?style=flat-square)](#how-it-works)
 
 CMC automatically captures what happened in each Claude Code session and injects it back as structured context next time — **no API keys, no LLM required, no manual steps**.
+
+> Works on Windows, macOS, and Linux. Compatible with any Claude Code project.
+
+---
+
+## Demo
+
+```
+$ cmc setup    # run once, globally
+✔ Hook registered → ~/.claude/settings.json
+
+$ cmc init     # run once per project
+✔ CLAUDE.md initialized with CMC state block
+
+# ... work in Claude Code as usual ...
+
+# Session ends → CMC fires automatically:
+✔ Transcript read (312 messages)
+✔ Files: 8 changed  Tasks: 3 open  Stack: Next.js, Supabase, TypeScript
+✔ Ollama detected → richer extraction enabled
+✔ CLAUDE.md updated
+
+# Next session → Claude already knows everything
+```
 
 ---
 
@@ -68,7 +94,7 @@ ollama pull llama3.2
 ## Install
 
 ```bash
-npm install -g claude-memory-compressor
+npm install -g cc-mem
 ```
 
 Verify:
@@ -276,12 +302,22 @@ Show token savings and storage statistics.
 ## Development
 
 ```bash
-git clone https://github.com/turkozemir0/claude-memory-compressor
-cd claude-memory-compressor
+git clone https://github.com/turkozemir0/cc-mem
+cd cc-mem
 npm install
 npm test          # 91 tests, Node.js built-in runner
 npm run build
 npm link          # test as global cmc command
+```
+
+---
+
+## Contributing
+
+PRs and issues welcome. Run the test suite before submitting:
+
+```bash
+npm test   # 91 tests, Node.js built-in runner
 ```
 
 ---
@@ -293,5 +329,9 @@ MIT — contributions welcome.
 ---
 
 <p align="center">
-  <b>Stop re-explaining your codebase. Let CMC remember it.</b>
+  <b>Stop re-explaining your codebase. Let CMC remember it.</b><br/>
+  <br/>
+  <a href="https://github.com/turkozemir0/cc-mem/stargazers">⭐ Star on GitHub</a> ·
+  <a href="https://www.npmjs.com/package/cc-mem">📦 npm</a> ·
+  <a href="https://github.com/turkozemir0/cc-mem/issues">🐛 Report a bug</a>
 </p>

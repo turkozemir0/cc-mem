@@ -1,5 +1,5 @@
 {
-  "name": "claude-memory-compressor",
+  "name": "cc-mem",
   "version": "0.3.0",
   "description": "Compress Claude Code conversation history with 100% local embeddings and semantic memory",
   "type": "module",
