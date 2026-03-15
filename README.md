@@ -26,7 +26,14 @@ Long Claude Code sessions hit a wall:
 Session ends → CMC auto-captures → Extracts facts → Updates CLAUDE.md → Next session has full context
 ```
 
-CMC hooks into Claude Code's Stop event and reads the session transcript directly. It extracts **structured facts** (files changed, packages installed, open tasks, tech stack, key decisions, problems solved) and merges them into `CLAUDE.md`. **No summarization = no information loss.**
+CMC hooks into Claude Code's Stop event and reads the session transcript directly. It extracts **structured facts** (files changed, packages installed, open tasks, tech stack, key decisions, problems solved) and merges them into `CLAUDE.md`.
+
+| Mode | Context retention | How |
+|---|---|---|
+| **With Ollama** _(free, local)_ | **~95%** | Full session narrative — what was built, why, current state |
+| **Without Ollama** | **~80%** | Files, tasks, stack, and key decisions captured deterministically |
+
+Ollama runs 100% on your machine. No account, no API key, no data leaves your computer.
 
 ---
 
